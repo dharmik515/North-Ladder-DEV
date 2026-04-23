@@ -1,0 +1,20 @@
+# --- Company data files ----------------------------------------------------
+# Ignore every Excel file by default to avoid uploading real inventory / QR data.
+*.xlsx
+
+# ... then re-include the empty master template (needed for the app to run).
+!Bulk Edit (87).xlsx
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
