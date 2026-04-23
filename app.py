@@ -16,7 +16,6 @@ from build_bulk_edit import (
     write_output,
     DEFAULT_INVENTORY,
     DEFAULT_QRCODES,
-    DEFAULT_TEMPLATE,
 )
 
 st.set_page_config(page_title="Bulk Edit Builder", page_icon=None, layout="wide")
@@ -25,7 +24,7 @@ st.title("Bulk Edit Master Template Builder")
 st.write(
     "Upload the **StockTake inventory** and **QR codes** files. "
     "The app filters inventory rows, looks up each location's QR code, "
-    "and fills the built-in Bulk Edit master template for download."
+    "and generates the Bulk Edit master template for download."
 )
 
 with st.expander("How the mapping works", expanded=False):
@@ -46,22 +45,19 @@ with col1:
 with col2:
     qr_file = st.file_uploader("QR codes file", type=["xlsx"], key="qr")
 
-if not Path(DEFAULT_TEMPLATE).exists():
-    st.error(f"Master template not found on server: {DEFAULT_TEMPLATE}")
-    st.stop()
-st.caption(f"Master template: `{Path(DEFAULT_TEMPLATE).name}` (built in — no upload needed)")
+st.caption("Master template is generated from scratch — no template upload needed.")
 
-use_defaults = st.checkbox(
-    "Use the sample inputs already in this folder (for demo)",
-    value=not any([inv_file, qr_file]),
-)
+samples_available = Path(DEFAULT_INVENTORY).exists() and Path(DEFAULT_QRCODES).exists()
+use_defaults = False
+if samples_available:
+    use_defaults = st.checkbox(
+        "Use the sample inputs already in this folder (for demo)",
+        value=not any([inv_file, qr_file]),
+    )
 
 st.divider()
 
 if st.button("Generate filled master template", type="primary"):
-    # Master template is always the built-in one
-    tpl_src = DEFAULT_TEMPLATE
-
     # Inputs: either uploads or sample fallback
     if use_defaults:
         inv_src = DEFAULT_INVENTORY
@@ -72,7 +68,7 @@ if st.button("Generate filled master template", type="primary"):
                 st.stop()
     else:
         if not (inv_file and qr_file):
-            st.error("Please upload both the Inventory and QR codes files, or tick the 'Use sample inputs' box.")
+            st.error("Please upload both the Inventory and QR codes files.")
             st.stop()
         inv_src = io.BytesIO(inv_file.getvalue())
         qr_src = io.BytesIO(qr_file.getvalue())
@@ -87,9 +83,9 @@ if st.button("Generate filled master template", type="primary"):
         matched = len(rows) - len(unmatched)
         st.write(f"  {len(rows):,} inventory rows | matched {matched:,} | unmatched {len(unmatched)} | skipped (No Deal Id) {skipped}")
 
-        st.write("Writing master template...")
+        st.write("Building master template...")
         out_buf = io.BytesIO()
-        write_output(tpl_src, out_buf, rows)
+        write_output(out_buf, rows)
         out_buf.seek(0)
         status.update(label="Done", state="complete")
 

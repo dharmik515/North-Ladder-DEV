@@ -1,5 +1,5 @@
 """
-Populate the Bulk Edit master template (sheet "Appraisal User Qr code Mapping")
+Build the Bulk Edit master workbook (sheet "Appraisal User Qr code Mapping")
 from the StockTake inventory file + the QR codes file.
 
 Logic replicates the manual workflow:
@@ -8,29 +8,29 @@ Logic replicates the manual workflow:
      and return the matching UserQrCode.
      Locations annotated like "R58 (AUH-D1-INVOICE-21-04)" are matched
      on the prefix before the first "(".
-  3. Write two columns to the template: Appraisal code (Deal Id), User Qr Code.
+  3. Write two columns: Appraisal code (Deal Id), User Qr Code.
   4. Sort by Deal Id, then Location.
 
 Usage:
   python build_bulk_edit.py
-      -> uses the three default filenames in this folder and writes
-         "Bulk Edit (87) - filled.xlsx" next to the template.
+      -> uses the two default input filenames in this folder and writes
+         "Bulk Edit - filled.xlsx" next to them.
 
-  python build_bulk_edit.py <inventory.xlsx> <qrcodes.xlsx> <template.xlsx> [output.xlsx]
+  python build_bulk_edit.py <inventory.xlsx> <qrcodes.xlsx> [output.xlsx]
 """
 import re
 import sys
 from pathlib import Path
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 
 HERE = Path(__file__).parent
 DEFAULT_INVENTORY = HERE / "INV 21.04.26.xlsx"
 DEFAULT_QRCODES = HERE / "QR codes 1.xlsx"
-DEFAULT_TEMPLATE = HERE / "Bulk Edit (87).xlsx"
 
 INVENTORY_SHEET = "StockTake Template"
 QR_SHEET = "User Qr Code"
 OUTPUT_SHEET = "Appraisal User Qr code Mapping"
+OUTPUT_HEADERS = ("Appraisal code", "User Qr Code")
 
 ROOM_COL = 0       # column A
 LOCATION_COL = 2   # column C
@@ -94,12 +94,12 @@ def collect_rows(inventory_source, qr_lookup: dict):
     return rows, unmatched, skipped_no_deal_id
 
 
-def write_output(template_source, output_target, rows):
-    """template_source can be a path or file-like; output_target can be a path or file-like."""
-    wb = load_workbook(template_source)
-    ws = wb[OUTPUT_SHEET]
-    if ws.max_row > 1:
-        ws.delete_rows(2, ws.max_row)
+def write_output(output_target, rows):
+    """Build the Bulk Edit master workbook from scratch and save to path or file-like."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = OUTPUT_SHEET
+    ws.append(list(OUTPUT_HEADERS))
     for deal_id, qr, _loc in rows:
         ws.append([deal_id, qr])
     wb.save(output_target)
@@ -107,18 +107,16 @@ def write_output(template_source, output_target, rows):
 
 def main():
     args = sys.argv[1:]
-    if len(args) >= 3:
+    if len(args) >= 2:
         inventory = Path(args[0])
         qrcodes = Path(args[1])
-        template = Path(args[2])
-        output = Path(args[3]) if len(args) >= 4 else template.with_name(f"{template.stem} - filled.xlsx")
+        output = Path(args[2]) if len(args) >= 3 else HERE / "Bulk Edit - filled.xlsx"
     else:
         inventory = DEFAULT_INVENTORY
         qrcodes = DEFAULT_QRCODES
-        template = DEFAULT_TEMPLATE
-        output = template.with_name(f"{template.stem} - filled.xlsx")
+        output = HERE / "Bulk Edit - filled.xlsx"
 
-    for p in (inventory, qrcodes, template):
+    for p in (inventory, qrcodes):
         if not p.exists():
             sys.exit(f"Missing input: {p}")
 
@@ -133,7 +131,7 @@ def main():
     print(f"  skipped (No Deal Id): {skipped}")
 
     print(f"Writing output:    {output.name}")
-    write_output(template, output, rows)
+    write_output(output, rows)
     print("Done.")
 
     if unmatched:
