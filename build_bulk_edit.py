@@ -22,6 +22,7 @@ import re
 import sys
 from pathlib import Path
 from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, PatternFill
 
 HERE = Path(__file__).parent
 DEFAULT_INVENTORY = HERE / "INV 21.04.26.xlsx"
@@ -104,13 +105,40 @@ def collect_rows(inventory_source, qr_lookup: dict):
 
 
 def write_output(output_target, rows):
-    """Build the Bulk Edit master workbook from scratch and save to path or file-like."""
+    """Build the Bulk Edit master workbook from scratch and save to path or file-like.
+
+    Rows with a Deal Id that appears only once are written first (the "proper"
+    block ready for Bulk Edit upload). Rows whose Deal Id appears on multiple
+    inventory rows are flagged and appended at the bottom under a marker row,
+    with Location included as a third column so the user can reconcile which
+    physical unit's QR to keep.
+    """
+    counts = {}
+    for deal_id, _qr, _loc in rows:
+        counts[deal_id] = counts.get(deal_id, 0) + 1
+    proper = [r for r in rows if counts[r[0]] == 1]
+    dupes = [r for r in rows if counts[r[0]] > 1]
+
     wb = Workbook()
     ws = wb.active
     ws.title = OUTPUT_SHEET
     ws.append(list(OUTPUT_HEADERS))
-    for deal_id, qr, _loc in rows:
+    for deal_id, qr, _loc in proper:
         ws.append([deal_id, qr])
+
+    if dupes:
+        ws.append([])
+        marker = ws.cell(row=ws.max_row + 1, column=1,
+                         value="REVIEW - DUPLICATE DEAL IDS (pick one per Deal Id, then delete the rest)")
+        marker.font = Font(bold=True, color="9C0006")
+        marker.fill = PatternFill("solid", fgColor="FFF2CC")
+        header_row = ws.max_row + 1
+        ws.cell(row=header_row, column=1, value="Appraisal code").font = Font(bold=True)
+        ws.cell(row=header_row, column=2, value="User Qr Code").font = Font(bold=True)
+        ws.cell(row=header_row, column=3, value="Location").font = Font(bold=True)
+        for deal_id, qr, loc in dupes:
+            ws.append([deal_id, qr, loc])
+
     wb.save(output_target)
 
 
