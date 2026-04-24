@@ -70,7 +70,9 @@ def match_qr(location, lookup: dict):
 
 def collect_rows(inventory_source, qr_lookup: dict):
     """inventory_source can be a path or any file-like object.
-    Returns (rows, unmatched, skipped_no_deal_id).
+    Returns (rows, unmatched, skipped_no_deal_id, duplicates).
+    duplicates is a list of (deal_id, [(location, qr), ...]) for Deal Ids
+    that appear on more than one inventory row.
     """
     wb = load_workbook(inventory_source, data_only=True, read_only=True)
     ws = wb[INVENTORY_SHEET]
@@ -91,7 +93,14 @@ def collect_rows(inventory_source, qr_lookup: dict):
         rows.append((deal_id, qr, location))
     wb.close()
     rows.sort(key=lambda r: (str(r[0]), str(r[2]) if r[2] is not None else ""))
-    return rows, unmatched, skipped_no_deal_id
+
+    groups = {}
+    for deal_id, qr, loc in rows:
+        groups.setdefault(deal_id, []).append((loc, qr))
+    duplicates = [(d, entries) for d, entries in groups.items() if len(entries) > 1]
+    duplicates.sort(key=lambda x: str(x[0]))
+
+    return rows, unmatched, skipped_no_deal_id, duplicates
 
 
 def write_output(output_target, rows):
@@ -125,10 +134,11 @@ def main():
     print(f"  {len(qr_lookup)} unique QR descriptions loaded")
 
     print(f"Reading inventory: {inventory.name}")
-    rows, unmatched, skipped = collect_rows(inventory, qr_lookup)
+    rows, unmatched, skipped, duplicates = collect_rows(inventory, qr_lookup)
     matched = len(rows) - len(unmatched)
     print(f"  {len(rows)} Inventory rows -> matched {matched}, unmatched {len(unmatched)}")
     print(f"  skipped (No Deal Id): {skipped}")
+    print(f"  duplicate Deal Ids:   {len(duplicates)}")
 
     print(f"Writing output:    {output.name}")
     write_output(output, rows)
@@ -140,6 +150,14 @@ def main():
             print(f"  {deal_id}  |  location={loc!r}")
         if len(unmatched) > 20:
             print(f"  ... and {len(unmatched) - 20} more")
+
+    if duplicates:
+        print("\nWARNING: these Deal Ids appear on multiple inventory rows:")
+        for deal_id, entries in duplicates[:20]:
+            pairs = ", ".join(f"{loc}->{qr}" for loc, qr in entries)
+            print(f"  {deal_id}  |  {pairs}")
+        if len(duplicates) > 20:
+            print(f"  ... and {len(duplicates) - 20} more")
 
 
 if __name__ == "__main__":

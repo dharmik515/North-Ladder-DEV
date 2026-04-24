@@ -79,9 +79,9 @@ if st.button("Generate filled master template", type="primary"):
         st.write(f"  {len(qr_lookup):,} unique QR descriptions loaded")
 
         st.write("Filtering inventory and matching QR codes...")
-        rows, unmatched, skipped = collect_rows(inv_src, qr_lookup)
+        rows, unmatched, skipped, duplicates = collect_rows(inv_src, qr_lookup)
         matched = len(rows) - len(unmatched)
-        st.write(f"  {len(rows):,} inventory rows | matched {matched:,} | unmatched {len(unmatched)} | skipped (No Deal Id) {skipped}")
+        st.write(f"  {len(rows):,} inventory rows | matched {matched:,} | unmatched {len(unmatched)} | skipped (No Deal Id) {skipped} | duplicate Deal Ids {len(duplicates)}")
 
         st.write("Building master template...")
         out_buf = io.BytesIO()
@@ -90,11 +90,12 @@ if st.button("Generate filled master template", type="primary"):
         status.update(label="Done", state="complete")
 
     # Summary metrics
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Rows written", f"{len(rows):,}")
     c2.metric("Matched QR", f"{matched:,}")
     c3.metric("Unmatched QR", f"{len(unmatched):,}")
     c4.metric("Skipped (No Deal Id)", f"{skipped:,}")
+    c5.metric("Duplicate Deal Ids", f"{len(duplicates):,}")
 
     # Preview
     st.subheader("Preview")
@@ -110,6 +111,23 @@ if st.button("Generate filled master template", type="primary"):
         st.warning(f"{len(unmatched)} row(s) have no QR code match.")
         st.dataframe(
             pd.DataFrame(unmatched, columns=["Deal Id", "Location"]),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    # Duplicate Deal Id warning
+    if duplicates:
+        st.warning(
+            f"{len(duplicates)} Deal Id(s) appear on multiple inventory rows. "
+            "Each location's row is written to the output — review and pick the intended one."
+        )
+        dup_rows = [
+            (deal_id, loc, qr)
+            for deal_id, entries in duplicates
+            for loc, qr in entries
+        ]
+        st.dataframe(
+            pd.DataFrame(dup_rows, columns=["Deal Id", "Location", "User Qr Code"]),
             use_container_width=True,
             hide_index=True,
         )
