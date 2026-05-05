@@ -8,6 +8,7 @@ Logic replicates the manual workflow:
      and return the matching UserQrCode.
      Locations annotated like "R58 (AUH-D1-INVOICE-21-04)" are matched
      on the prefix before the first "(".
+     OBDT(...) variants all roll up to the OBDT1 QR sticker.
   3. Write two columns: Appraisal code (Deal Id), User Qr Code.
   4. Sort by Deal Id, then Location.
 
@@ -64,8 +65,13 @@ def match_qr(location, lookup: dict):
     if loc in lookup:
         return lookup[loc]
     m = _LOCATION_STRIP_RE.match(loc)
-    if m and m.group(1) in lookup:
-        return lookup[m.group(1)]
+    if m:
+        prefix = m.group(1)
+        if prefix in lookup:
+            return lookup[prefix]
+        # OBDT rollup: OBDT(<n>) variants share a single QR sticker (OBDT1)
+        if prefix.upper() == "OBDT" and "OBDT1" in lookup:
+            return lookup["OBDT1"]
     return None
 
 
